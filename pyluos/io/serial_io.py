@@ -121,10 +121,6 @@ class Serial(IOHandler):
         while self._running:
             to_read = self._serial.in_waiting
 
-            if to_read == 0:
-                time.sleep(self.period)
-                continue
-
             s = self._serial.read(to_read)
             buff = buff + s
 
