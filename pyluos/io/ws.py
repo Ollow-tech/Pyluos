@@ -63,7 +63,7 @@ class Ws(IOHandler):
 
     def recv(self):
         try:
-            data = self._msg.get(True, 1)
+            data = self._msg.get(True, 0.01)
         except queue.Empty:
             data = None
         return data
