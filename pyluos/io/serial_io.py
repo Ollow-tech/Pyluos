@@ -75,7 +75,7 @@ class Serial(IOHandler):
 
     def close(self):
         self._running = False
-        self._poll_loop.join()
+        self._poll_loop.join(timeout = 1)
 
         self._serial.close()
 
@@ -121,6 +121,10 @@ class Serial(IOHandler):
         while self._running:
             to_read = self._serial.in_waiting
 
+            if to_read == 0:
+                time.sleep(self.period)
+                continue
+            
             s = self._serial.read(to_read)
             buff = buff + s
 
