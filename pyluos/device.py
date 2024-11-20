@@ -111,7 +111,7 @@ class Device(object):
         self._setup()
         self.logger.info('Device setup.')
 
-        self._last_update = time.time()
+        self._last_update = 0.0
         self._running = True
         self._pause = False
 
@@ -220,6 +220,10 @@ class Device(object):
     def nodes(self):
         return nodeList(self._nodes)
 
+    @property
+    def last_update(self) -> float:
+        """The last_update property."""
+        return self._last_update
 
     # Poll state from hardware.
     def _poll_once(self):
@@ -299,7 +303,7 @@ class Device(object):
             if (self._freedomLink != None):
                 self._freedomLink._update(alias, mod)
 
-        self._last_update = time.time()
+        self._last_update = float(new_state["timestamp"])
 
     def update_cmd(self, alias, key, val):
         with self._cmd_lock:
