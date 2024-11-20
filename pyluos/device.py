@@ -223,17 +223,16 @@ class Device(object):
 
     # Poll state from hardware.
     def _poll_once(self):
-        self._state = self._io.read()
-        if self._state != []:
-            self._state['timestamp'] = time.time()
-            return self._state
-        return []
+        state = self._io.read()
+        if state:
+            state['timestamp'] = time.time()
+        return state
 
     def _poll_and_up(self):
         while self._running:
             if not self._pause:
                 state = self._poll_once()
-                if self._state != []:
+                if state:
                     self._update(state)
                     self._push_once()
             else:
@@ -269,7 +268,7 @@ class Device(object):
                             self._freedomLink._kill(service.alias)
                         service._kill()
                         s += "\n*  Service " + str(service.alias) + " have been excluded from the network due to no responses."
-                    
+
                     s += "\n*************************************************************"
                     print(s)
                     break
