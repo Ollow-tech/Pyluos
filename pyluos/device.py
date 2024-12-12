@@ -144,14 +144,12 @@ class Device(object):
         self._pause = False
 
     def _setup(self):
-        self.logger.info('Sending detection signal.')
-        self._send({})
-        time.sleep(0.01)
+        startTime = time.time()
+        retry = 0
+        self.logger.info(f'Sending detection signal ({retry=})')
         self._send({'detection': {}})
         self.logger.info('Waiting for routing table...')
-        startTime = time.time()
         state = self._poll_once()
-        retry = 0
         while ('routing_table' not in state):
             if ('route_table' in state):
                 self.logger.info("Watch out the Luos revision you are using on your board is too old to work with this revision of pyluos.\n Please consider updating Luos on your boards")
@@ -162,6 +160,7 @@ class Device(object):
                 if retry > 5:
                     # detection is not working
                     sys.exit("Detection failed.")
+                self.logger.info(f'Sending detection signal ({retry=})')
                 self._send({'detection': {}})
                 startTime = time.time()
         # Save routing table data
