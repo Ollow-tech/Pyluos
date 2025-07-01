@@ -158,6 +158,7 @@ def send_ready_cmd(device, node, topic, verbose):
             for response in state['bootloader']:
                 if response['response'] == BOOTLOADER_ERROR_SIZE:
                     print(FAIL + u"   ╰> Node n°", response['node'], "has not enough space in flash memory." + ENDC)
+                    device.logger.error(f"Node {response['node']} has not enough space in flash memory.")
                     # don't load binary if there is not enough place in flash memory
                     return_value = False
                 else:
@@ -217,6 +218,7 @@ def erase_flash(device, topic, nodes_to_program, verbose):
         if (time.time() - init_time > timeout):
             return_value = False
             print(FAIL + u"\r   ╰> Erase flash of node", failed_nodes, "FAILED %" + ENDC)
+            device.logger.error(f"Erase flash of node {failed_nodes} FAILED")
             break
         # check if it is a response message
         if 'bootloader' in state:
@@ -267,6 +269,7 @@ def erase_flash(device, topic, nodes_to_program, verbose):
 
 
 def loading_bar(loading_progress):
+
     period = 0.1
     chars = "/—\|"
     while (1):
@@ -309,6 +312,7 @@ def send_binary_data(device, topic, nodes_to_program):
         loading_state, failed_nodes = send_frame_from_binary(device, topic, frame_size, file_offset, nodes_to_program)
         if not loading_state:
             print(FAIL + u"\r   ╰> Loading of node", failed_nodes, "FAILED" + ENDC)
+            device.logger.error(f"Loading of node {failed_nodes} FAILED")
             for fail in failed_nodes:
                 nodes_to_program.remove(fail)
             prev_fails.extend(failed_nodes)
@@ -320,11 +324,15 @@ def send_binary_data(device, topic, nodes_to_program):
         file_offset += frame_size
         # update loading progress
         loading_progress.value = frame_index / nb_frames * 100
+        # log the loading progress value
+        device.logger.info(f"loading_progress.value updated to: {loading_progress.value:.2f}% for node number {nodes_to_program[0]}")
+        # device.logger.error(f"loading_progress.value updated to: {loading_progress.value:.2f}% for node number {nodes_to_program[0]}")
 
     # kill the progress bar at the end of the loading
     loading_bar_bg.terminate()
     if loading_state:
         print(OKGREEN + u"\r   ╰> Loading : 100.0 %          " + ENDC)
+        device.logger.info(f"loading_progress.value updated to: 100.00% for node number {nodes_to_program[0]}")
     if len(prev_fails):
         loading_state = False
     return loading_state, prev_fails
@@ -565,6 +573,7 @@ def check_crc(device, topic, nodes_to_program, verbose):
                         # not a good crc
                         print(FAIL + u"   ╰> CRC test for node", node_id, ": NOK." + ENDC)
                         print(FAIL + u"   ╰> waited :", hex(source_crc), ", received :", hex(node_crc) + ENDC)
+                        device.logger.error(f"CRC test for node {node_id} failed: waited {hex(source_crc)}, received {hex(node_crc)}")
                         return_value = False
         state = device._poll_once()
 
@@ -597,6 +606,7 @@ def check_crc(device, topic, nodes_to_program, verbose):
                             # not a good crc
                             print(FAIL + u"   ╰> CRC test for node", node_id, ": NOK." + ENDC)
                             print(FAIL + u"   ╰> waited :", hex(source_crc), ", received :", hex(node_crc) + ENDC)
+                            device.logger.error(f"CRC test for node {node_id} failed: waited {hex(source_crc)}, received {hex(node_crc)}")
                             return_value = False
             state = device._poll_once()
 
@@ -668,7 +678,7 @@ def luos_flash(args):
     device = Device(args.port, baudrate=baudrate, background_task=False)
     if (not args.verbose):
         sys.stdout = sys.__stdout__
-
+    device.logger.info("Launching Flash process")
     # Get routing table JSON
     state = device._routing_table
     if state is None:
@@ -680,6 +690,7 @@ def luos_flash(args):
     # Check if we have available node to program
     if not nodes_to_program:
         print(FAIL + "No target found :\n" + str(device.nodes) + ENDC)
+        device.logger.error(f"No target found in the network: {device.nodes}")
         return BOOTLOADER_DETECT_ERROR
 
     # Reboot all nodes in bootloader mode
@@ -719,6 +730,7 @@ def luos_flash(args):
             print("\n" + BOLD + "Check if all node are in bootloader mode:" + ENDC)
         if state is None:
             print(FAIL + "   ╰> Reboot in bootloader mode failed." + ENDC)
+            device.logger.error("Reboot in bootloader mode failed.")
             return BOOTLOADER_DETECT_ERROR
         else:
             # Check if all node of the 'nodes_to_program' list is in bootloader mode
@@ -736,9 +748,11 @@ def luos_flash(args):
                             total_fails.append(node.id)
                             if (args.verbose):
                                 print(FAIL + "   ╰> Node", node.id, "reboot in bootloader mode failed." + ENDC)
+                                device.logger.error(f"Node {node.id} reboot in bootloader mode failed.")
             if (len(detected_node) > 0):
                 total_fails.extend(detected_node)
                 print(FAIL + "   ╰> Nodes", detected_node, "failed to restart in bootloader mode." + ENDC)
+                device.logger.error(f"Nodes {detected_node} failed to restart in bootloader mode.")
 
         for node in total_fails:
             try:
@@ -747,6 +761,7 @@ def luos_flash(args):
                 pass
             if len(nodes_to_program) == 0:
                 print(FAIL + "Programming failed on all targets." + ENDC)
+                device.logger.error("Programming failed on all targets.")
                 return BOOTLOADER_FLASH_ERROR
 
     # Wait before the next step
@@ -765,6 +780,7 @@ def luos_flash(args):
             total_fails.append(node)
             machine_state = True
             print(FAIL + "   ╰> Node", node, "programming failed." + ENDC)
+            device.logger.error(f"Node {node} programming failed.")
         time.sleep(0.01)
 
     for node in total_fails:
@@ -774,10 +790,12 @@ def luos_flash(args):
             pass
         if len(nodes_to_program) == 0:
             print(BOLD + FAIL + "Programming failed on all targets." + ENDC)
+            device.logger.error("Programming failed on all targets.")
             return BOOTLOADER_FLASH_ERROR
 
     if not len(nodes_to_program):
         print(BOLD + FAIL + "Programming failed on all targets." + ENDC)
+        device.logger.error("Programming failed on all targets.")
         return BOOTLOADER_FLASH_ERROR
 
     # Erase node flash memory
@@ -789,9 +807,11 @@ def luos_flash(args):
         total_fails.extend(failed_nodes)
         machine_state = True
         print(FAIL + "   ╰> Node", failed_nodes, "flash erasing failed!" + ENDC)
+        device.logger.error(f"Node {failed_nodes} flash erasing failed!")
 
     if not len(nodes_to_program):
         print(BOLD + FAIL + "Programming failed on all targets." + ENDC)
+        device.logger.error("Programming failed on all targets.")
         return BOOTLOADER_FLASH_ERROR
 
     # send binary data
@@ -801,9 +821,11 @@ def luos_flash(args):
         total_fails.extend(failed_nodes)
         machine_state = True
         print(FAIL + "Node", failed_nodes, "programming failed." + ENDC)
+        device.logger.error(f"Node {failed_nodes} programming failed!")
 
     if not len(nodes_to_program):
         print(BOLD + FAIL + "Programming failed on all targets." + ENDC)
+        device.logger.error("Programming failed on all targets.")
         return BOOTLOADER_FLASH_ERROR
 
     # inform the node of the end of the loading
@@ -816,6 +838,7 @@ def luos_flash(args):
         total_fails.extend(failed_nodes)
         machine_state = True
         print(FAIL + "Node", failed_nodes, "application validation failed!" + ENDC)
+        device.logger.error(f"Node {failed_nodes} application validation failed!")
 
     # Ask the node to send binary crc
     if (args.verbose):
@@ -827,6 +850,7 @@ def luos_flash(args):
         total_fails.extend(failed_nodes)
         machine_state = True
         print(FAIL + "Node", failed_nodes, "ACK failed!" + ENDC)
+        device.logger.error(f"Node {failed_nodes} ACK failed!")
 
     # Say to the bootloader that the integrity of the app saved in flash has been verified
     if (args.verbose):
@@ -849,6 +873,7 @@ def luos_flash(args):
         device.close()
         print(BOLD + "Programming in {:.3f} s.".format(time.time() - begin_date) + ENDC)
         print(FAIL + "Nodes", total_fails, "programming failed, please reboot and retry." + ENDC)
+        device.logger.error(f"Nodes {total_fails} programming failed, please reboot and retry.")
         return BOOTLOADER_FLASH_ERROR
 
 # *******************************************************************************
@@ -875,6 +900,7 @@ def luos_detect(args):
     device = Device(args.port, baudrate=baudrate)
     # print network to user
     print(device.nodes)
+    device.logger.info('Luos network detected on port: %s', args.port)
     device.close()
 
     return BOOTLOADER_SUCCESS
